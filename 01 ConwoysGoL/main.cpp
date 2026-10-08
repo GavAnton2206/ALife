@@ -14,6 +14,7 @@ using pos = pair<int, int>;
 #define se second
 #define pb push_back
 
+
 // State that defines dead or alvie cell
 enum state {
     d,
@@ -27,16 +28,23 @@ const string aS = "█ ";
 // Transforming state to its output view
 map<state, string> toStr = {{d, dS}, {a, aS}};
 
-// General Grid Class
-class Grid{
+// Struct for importing the information
+struct imported {
+    vector<vector<state>> grid;
+    vector<int> S; // survive when
+    vector<int> B; // born when
+};
+
+// General WorldState Class
+class WorldState{
 public:
     int n, m;
     vector<vector<state>> grid;
     vector<pos> alive;
+    vector<int> B, S;
     
     // Constructors
-    Grid(const vector<vector<state>>& grid_){
-        grid = grid_;
+    WorldState(const vector<vector<state>>& grid_, const vector<int>& B_ = {3}, const vector<int>& S_ = {2, 3}): grid(grid_), B(B_), S(S_){
         n = grid.size();
         if(n >= 1)
             m = grid[0].size();
@@ -46,7 +54,7 @@ public:
         initializeAlive();
     }
 
-    Grid(int n_, int m_ = -1){
+    WorldState(int n_, int m_ = -1, const vector<int>& B_ = {3}, const vector<int>& S_ = {2, 3}): B(B_), S(S_){
         n = n_;
         if(m_ == -1){
             m = n;
@@ -58,6 +66,10 @@ public:
         alive.clear();
     }
 
+    void setRules(const vector<int>& B_, const vector<int>& S_){
+        B = B_;
+        S = S_;
+    }
 
     // Update-related functions
     void updateStep(){
@@ -81,9 +93,9 @@ public:
             }
 
             if(grid[cell.fi][cell.se] == a){
-                newGrid[cell.fi][cell.se] = (aliveAround == 2 || aliveAround == 3) ? a : d;
+                newGrid[cell.fi][cell.se] = (find(S.begin(), S.end(), aliveAround) != S.end()) ? a : d;
             }else{
-                newGrid[cell.fi][cell.se] = (aliveAround == 3) ? a : d;
+                newGrid[cell.fi][cell.se] = (find(B.begin(), B.end(), aliveAround) != B.end()) ? a : d;
             }
 
             if(newGrid[cell.fi][cell.se] == a){
@@ -139,7 +151,7 @@ private:
 };
 
 // Showing the grid to user
-void print(const Grid& grid){
+void print(const WorldState& grid){
     for(int i = 0; i < grid.n; i++){
         for(int j = 0; j < grid.m; j++){
             cout << toStr[grid.grid[i][j]];
@@ -160,32 +172,46 @@ void print(const vector<vector<state>>& grid, int n, int m){
 }
 
 // Importing grid from file
-vector<vector<state>> importGrid(ifstream& file, char dead = 'D'){
+imported importWorld(ifstream& file, char dead = 'D'){
+    imported res;
+    
     if (!file) {
         std::cerr << "Could not open file\n";
-        return vector<vector<state>>();
+        return res;
     }
 
     int n, m;
     file >> n >> m;
 
-    vector<vector<state>> grid(n, vector<state>(m));
+    // process rules
+    string line;
+    file >> line;
+    for(int j = 1; j < line.size(); j++){
+        res.B.pb(line[j] - '0');
+    }
+
+    file >> line;
+    for(int j = 1; j < line.size(); j++){
+        res.S.pb(line[j] - '0');
+    }
+
+    // import grid
+    res.grid = vector<vector<state>>(n, vector<state>(m));
 
     for(int i = 0; i < n; i++){
-        string line;
         file >> line;
         for(int j = 0; j < m; j++){
-            grid[i][j] = (line[j] == dead) ? d : a;
+            res.grid[i][j] = (line[j] == dead) ? d : a;
         }
     }
 
-    return grid;
+    return res;
 }
 
 int main(){
     ifstream file("sgrid.txt");
-    vector<vector<state>> sgrid = importGrid(file);
-    Grid grid(sgrid);
+    imported fileI = importWorld(file);
+    WorldState grid(fileI.grid, fileI.B, fileI.S);
     print(grid);
 
     int n;
