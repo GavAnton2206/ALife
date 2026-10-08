@@ -7,6 +7,7 @@
 #include <thread>
 #include <chrono>
 #include <memory>
+#include <random>
 
 struct cell;
 struct entity;
@@ -15,6 +16,8 @@ struct imported;
 using namespace std;
 using pii = pair<int, int>;
 using vvc = vector<vector<cell>>;
+
+class WorldState;
 
 int availableID = 0;
 
@@ -36,6 +39,43 @@ struct cell {
     int id = -1; // id of entity
 
     cell(cellType type_=n, int id_=-1) : type(type_), id(id_) {}
+};
+
+const cell emptyCell = cell(cellType::n, -1);
+const cell plantCell = cell(cellType::p, -1);
+
+class RandomRange {
+public:
+    RandomRange() : engine(random_device{}()) {}
+
+    // Generates a random integer in [a, b]
+    int rand(int a, int b) {
+        std::uniform_int_distribution<int> dist(a, b);
+        return dist(engine);
+    }
+
+private:
+    std::mt19937 engine;
+};
+
+// Entity
+struct entity {
+    int id; // id in system
+
+    entityType type;
+    pii pos;
+    int energy;
+    int age;
+
+    virtual pii decideMove(const WorldState& world){
+        return pos;
+    }
+
+    entity(int id_, entityType type_, pii pos_, int energy_ = 100, int age_ = 0) : id(id_), type(type_), pos(pos_), energy(energy_), age(age_) {}
+
+    virtual unique_ptr<entity> clone() const {
+        return make_unique<entity>(*this);
+    }
 };
 
 class WorldState{
@@ -65,6 +105,15 @@ public:
         grid = vvc(n, vector<cell>(m, cell()));
     }
 
+    WorldState(const WorldState& other) :n(other.n), m(other.m), grid(other.grid), B(other.B), S(other.S){
+        for (const auto& ent : other.entities) {
+            entities[ent.first] = ent.second->clone();
+        }
+    }
+
+    WorldState(WorldState&&) noexcept = default;
+    WorldState& operator=(WorldState&&) noexcept = default;
+
 private:
     // Vectors of cells around a given, not including it
     vector<pii> cellsAround(pii Pos){
@@ -93,56 +142,4 @@ private:
         int y = Pos.second;
         return (x >= 0) && (y >= 0) && (x <= n - 1) && (y <= m - 1);
     }
-};
-
-/*
-    void updateStep(){
-        vector<vector<state>> newGrid = grid;
-        vector<pos> newAlive = vector<pos>(); 
-
-        set<pos> toUpdate;
-        for(auto &cell : alive){
-            toUpdate.insert(cell);
-            vector<pos> around = cellsAround(cell);
-            for(int i = 0; i < around.size(); i++){
-                toUpdate.insert(around[i]);
-            }
-        }
-
-        for(auto &cell: toUpdate){
-            int aliveAround = 0;
-            vector<pos> around = cellsAround(cell);
-            for(int i = 0; i < around.size(); i++){
-                aliveAround += grid[around[i].fi][around[i].se] == a ? 1 : 0;
-            }
-
-            if(grid[cell.fi][cell.se] == a){
-                newGrid[cell.fi][cell.se] = (find(S.begin(), S.end(), aliveAround) != S.end()) ? a : d;
-            }else{
-                newGrid[cell.fi][cell.se] = (find(B.begin(), B.end(), aliveAround) != B.end()) ? a : d;
-            }
-
-            if(newGrid[cell.fi][cell.se] == a){
-                newAlive.pb(cell);
-            }
-        }
-
-        alive.swap(newAlive);
-        grid.swap(newGrid);
-    }*/
-
-// Entity
-struct entity {
-    int id; // id in system
-
-    entityType type;
-    pii pos;
-    int energy;
-    int age;
-
-    pii decideMove(const WorldState& world){
-        return pos;
-    }
-
-    entity(int id_, entityType type_, pii pos_, int energy_ = 100, int age_ = 0) : id(id_), type(type_), pos(pos_), energy(energy_), age(age_) {}
 };
