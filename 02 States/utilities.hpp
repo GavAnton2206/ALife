@@ -8,6 +8,8 @@
 #include <chrono>
 #include <memory>
 #include <random>
+#include <cstdio>
+#include <cstdarg>
 
 struct cell;
 struct entity;
@@ -43,13 +45,19 @@ struct cell {
 };
 
 struct Rules{
+    bool debug;
+
     int msDelay; // delay between frames
-    int foodEnergy; // energy received from eating food
+    int birthEnergy; // energy gained when giving birth (-x to lose)
+    int startingEnergy; // energy when being born
+    int foodEnergy, entityEnergy; // energy received from eating food or entity
+    float miraculousSpawnChance; // change in [0, 1] for an entity to spawn at random cell
 };
 
 const cell emptyCell = cell(cellType::n, -1);
 const cell plantCell = cell(cellType::p, -1);
 
+// ------- HELPER -----------
 class RandomRange {
 public:
     RandomRange() : engine(random_device{}()) {}
@@ -60,9 +68,32 @@ public:
         return dist(engine);
     }
 
+    pii rand_pos(int n, int m){
+        std::uniform_int_distribution<int> x(0, n - 1);
+        std::uniform_int_distribution<int> y(0, m - 1);
+
+        return {x(engine), y(engine)};
+    }
+
+    entityType rand_entity(){
+        std::uniform_int_distribution<int> y(10, 11);
+
+        int res = y(engine);
+
+        if(res == 10){
+            return entityType::herb;
+        }else if(res == 11){
+            return entityType::carn;
+        }
+    }
+
 private:
     std::mt19937 engine;
 };
+
+int sign(int x) {
+    return (x > 0) - (x < 0);
+}
 
 // Entity
 struct entity {
@@ -128,11 +159,23 @@ public:
     map<int, unique_ptr<entity>>::iterator removeEntity(int id) {
         auto it = entities.find(id);
 
+        if(it == entities.end())
+            return it;
+
         grid[it->second->pos.first][it->second->pos.second] = cell(cellType::c);
         return entities.erase(it);
     }
 
+    // ---------- HELPER FuNCTIONS -------------
     // Check if a given cell is within bounds
+    int distance(int ent1, pii pos) const{
+        return abs(entities.at(ent1)->pos.first - pos.first) + abs(entities.at(ent1)->pos.second - pos.second);
+    }
+
+    int distance(int ent1, int ent2) const{
+        return abs(entities.at(ent1)->pos.first - entities.at(ent2)->pos.first) + abs(entities.at(ent1)->pos.second - entities.at(ent2)->pos.second);
+    }
+
     bool inBounds(pii Pos) const{
         int x = Pos.first;
         int y = Pos.second;
