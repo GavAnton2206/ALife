@@ -25,13 +25,14 @@ int availableID = 0;
 enum cellType {
     n=0, // none
     p=1, // plant,
-    e=2 // entity
+    e=2, // entity,
+    c=3, // corpse
 };
 
 // Type that defines type of entity
 enum entityType {
-    h=10, // herbivore
-    c=11// carnivore
+    herb=10, // herbivore
+    carn=11// carnivore
 };
 
 struct cell {
@@ -39,6 +40,11 @@ struct cell {
     int id = -1; // id of entity
 
     cell(cellType type_=n, int id_=-1) : type(type_), id(id_) {}
+};
+
+struct Rules{
+    int msDelay; // delay between frames
+    int foodEnergy; // energy received from eating food
 };
 
 const cell emptyCell = cell(cellType::n, -1);
@@ -63,6 +69,7 @@ struct entity {
     int id; // id in system
 
     entityType type;
+
     pii pos;
     int energy;
     int age;
@@ -72,6 +79,8 @@ struct entity {
     }
 
     entity(int id_, entityType type_, pii pos_, int energy_ = 100, int age_ = 0) : id(id_), type(type_), pos(pos_), energy(energy_), age(age_) {}
+
+    virtual ~entity() {}
 
     virtual unique_ptr<entity> clone() const {
         return make_unique<entity>(*this);
@@ -83,10 +92,9 @@ public:
     int n, m; // size of grid
     map<int, unique_ptr<entity>> entities; // entities
     vvc grid; // grid
-    vector<int> B, S; // rules of born and survive
     
     // Constructors
-    WorldState(const vvc& grid_, const vector<int>& B_ = {3}, const vector<int>& S_ = {2, 3}): grid(grid_), B(B_), S(S_){
+    WorldState(const vvc& grid_, const vector<int>& B_ = {3}, const vector<int>& S_ = {2, 3}): grid(grid_) {
         n = grid.size();
         if(n >= 1)
             m = grid[0].size();
@@ -94,7 +102,7 @@ public:
             m = 0;
     }
 
-    WorldState(int n_ = 0, int m_ = -1, const vector<int>& B_ = {3}, const vector<int>& S_ = {2, 3}): B(B_), S(S_){
+    WorldState(int n_ = 0, int m_ = -1, const vector<int>& B_ = {3}, const vector<int>& S_ = {2, 3}){
         n = n_;
         if(m_ == -1){
             m = n;
@@ -105,10 +113,30 @@ public:
         grid = vvc(n, vector<cell>(m, cell()));
     }
 
-    WorldState(const WorldState& other) :n(other.n), m(other.m), grid(other.grid), B(other.B), S(other.S){
+    WorldState(const WorldState& other) :n(other.n), m(other.m), grid(other.grid) {
         for (const auto& ent : other.entities) {
             entities[ent.first] = ent.second->clone();
         }
+    }
+
+    // erasing entity from dictionary
+    map<int, unique_ptr<entity>>::iterator removeEntity(map<int, unique_ptr<entity>>::iterator id) {
+        grid[id->second->pos.first][id->second->pos.second] = cell(cellType::c);
+        return entities.erase(id);
+    }
+
+    map<int, unique_ptr<entity>>::iterator removeEntity(int id) {
+        auto it = entities.find(id);
+
+        grid[it->second->pos.first][it->second->pos.second] = cell(cellType::c);
+        return entities.erase(it);
+    }
+
+    // Check if a given cell is within bounds
+    bool inBounds(pii Pos) const{
+        int x = Pos.first;
+        int y = Pos.second;
+        return (x >= 0) && (y >= 0) && (x <= n - 1) && (y <= m - 1);
     }
 
     WorldState(WorldState&&) noexcept = default;
@@ -134,12 +162,5 @@ private:
         }
 
         return res;
-    }
-
-    // Check if a given cell is within bounds
-    bool inBounds(pii Pos){
-        int x = Pos.first;
-        int y = Pos.second;
-        return (x >= 0) && (y >= 0) && (x <= n - 1) && (y <= m - 1);
     }
 };
