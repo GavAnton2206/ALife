@@ -67,9 +67,11 @@ pii findNearestHerbivore(const WorldState& world, pii pos){
 
     pii dir = {sign(herbPos.first - pos.first), sign(herbPos.second - pos.second)};
 
+    // can walk diagonally
+    /*
     if(dir.first != 0){
         dir.second = 0;
-    }
+    }*/
 
     return {pos.first + dir.first, pos.second + dir.second};
 }
@@ -149,10 +151,12 @@ void newEntity(int id, pii pos, entityType type, WorldState& world){
     switch(type){
         case entityType::herb:
             world.entities[id] = make_unique<herbivoreEntity>(id, pos);
+            world.entityCount[entityType::herb].first++;
             break;
 
         case entityType::carn:
             world.entities[id] = make_unique<carnivoreEntity>(id, pos);
+            world.entityCount[entityType::carn].first++;
             break;
     }
 }
@@ -183,10 +187,6 @@ cell inputToCell(pii pos, const string& rep, WorldState& world){
     throw std::logic_error("Trying to process a wrong input character.");
     return res;
 }
-
-/*
-map<int, string> toStr = {{e,  "· "}, {p, "♣ "}, {h, "♥ "}, {c, "♠ "}};
-map<string, int> toType = {{"·", e}, {"♣", p}, {"♥", h}, {"♠", c}};*/
 
 // Showing the grid to user
 void print(const unique_ptr<entity>& ent){
@@ -269,7 +269,7 @@ WorldState advanceTime(const WorldState& world){
 
     for(auto it = res.entities.begin(); it != res.entities.end();){
         // death
-        if(it->second->energy <= 0){
+        if(it->second->energy <= 0 || it->second->age > rules.maxAge){
             print("Entity #%d died\n", it->second->id);
             it = res.removeEntity(it);
         // reproduction
@@ -368,11 +368,12 @@ pair<WorldState, Rules> importWorld(ifstream& file){
     res.m = m;
     res.grid = vvc(n, vector<cell>(m));
 
-    int delay, birthEnergy, startingEnergy, foodEnergy, entityEnergy;
+    int delay, birthEnergy, startingEnergy, foodEnergy, entityEnergy, maxAge;
     float miraculousSpawnChance;
     int debug;
-    file >> debug >> delay >> miraculousSpawnChance >> birthEnergy >> startingEnergy >> foodEnergy >> entityEnergy;
+    file >> debug >> delay >> miraculousSpawnChance >> maxAge >> birthEnergy >> startingEnergy >> foodEnergy >> entityEnergy;
     rules.msDelay = delay;
+    rules.maxAge = maxAge;
     rules.debug = (debug == '1');
     rules.miraculousSpawnChance = miraculousSpawnChance;
     rules.birthEnergy = birthEnergy;
@@ -412,11 +413,12 @@ int main(){
         system("clear"); 
         worldState = advanceTime(worldState);
         print(worldState);
+        cout << '\n';
+        printf("Herbivores -> \n\tAlive: %i\tDead: %i\n", worldState.entityCount[entityType::herb].first, worldState.entityCount[entityType::herb].second);
+        printf("Carnivores -> \n\tAlive: %i\tDead: %i\n", worldState.entityCount[entityType::carn].first, worldState.entityCount[entityType::carn].second);
         if(worldState.entities.size() >= 1){
-            cout << '\n';
             printf("Gen: %d\n", time);
         }else{
-            cout << '\n';
             printf("Gen: %d - the world stays still...\n", time);
             break;
         }

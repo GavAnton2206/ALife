@@ -19,6 +19,8 @@ using namespace std;
 using pii = pair<int, int>;
 using vvc = vector<vector<cell>>;
 
+using ll = long long;
+
 class WorldState;
 
 int availableID = 0;
@@ -48,10 +50,13 @@ struct Rules{
     bool debug;
 
     int msDelay; // delay between frames
+    float miraculousSpawnChance; // change in [0, 1] for an entity to spawn at random cell
+
+    int maxAge; // age when entity dies
+
     int birthEnergy; // energy gained when giving birth (-x to lose)
     int startingEnergy; // energy when being born
     int foodEnergy, entityEnergy; // energy received from eating food or entity
-    float miraculousSpawnChance; // change in [0, 1] for an entity to spawn at random cell
 };
 
 const cell emptyCell = cell(cellType::n, -1);
@@ -122,6 +127,7 @@ class WorldState{
 public:
     int n, m; // size of grid
     map<int, unique_ptr<entity>> entities; // entities
+    map<entityType, pair<ll, ll>> entityCount = {{entityType::herb, {0, 0}}, {entityType::carn, {0, 0}}}; // count of alive/dead entities by type
     vvc grid; // grid
     
     // Constructors
@@ -131,6 +137,7 @@ public:
             m = grid[0].size();
         else
             m = 0;
+
     }
 
     WorldState(int n_ = 0, int m_ = -1, const vector<int>& B_ = {3}, const vector<int>& S_ = {2, 3}){
@@ -144,7 +151,7 @@ public:
         grid = vvc(n, vector<cell>(m, cell()));
     }
 
-    WorldState(const WorldState& other) :n(other.n), m(other.m), grid(other.grid) {
+    WorldState(const WorldState& other) :n(other.n), m(other.m), grid(other.grid), entityCount(other.entityCount) {
         for (const auto& ent : other.entities) {
             entities[ent.first] = ent.second->clone();
         }
@@ -152,6 +159,9 @@ public:
 
     // erasing entity from dictionary
     map<int, unique_ptr<entity>>::iterator removeEntity(map<int, unique_ptr<entity>>::iterator id) {
+        entityCount[id->second->type].first--;
+        entityCount[id->second->type].second++;
+        
         grid[id->second->pos.first][id->second->pos.second] = cell(cellType::c);
         return entities.erase(id);
     }
@@ -162,8 +172,7 @@ public:
         if(it == entities.end())
             return it;
 
-        grid[it->second->pos.first][it->second->pos.second] = cell(cellType::c);
-        return entities.erase(it);
+        return removeEntity(it);
     }
 
     // ---------- HELPER FuNCTIONS -------------
