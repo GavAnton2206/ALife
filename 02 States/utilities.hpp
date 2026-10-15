@@ -29,8 +29,7 @@ int availableID = 0;
 enum cellType {
     n=0, // none
     p=1, // plant,
-    e=2, // entity,
-    c=3, // corpse
+    c=2, // corpse
 };
 
 // Type that defines type of entity
@@ -41,9 +40,9 @@ enum entityType {
 
 struct cell {
     cellType type; // type of cell
-    int id = -1; // id of entity
+    set<int> ids; // id's of entities that are in that cell
 
-    cell(cellType type_=n, int id_=-1) : type(type_), id(id_) {}
+    cell(cellType type_=n, set<int> id_ = {}) : type(type_), ids(id_) {}
 };
 
 struct Rules{
@@ -59,8 +58,8 @@ struct Rules{
     int foodEnergy, entityEnergy; // energy received from eating food or entity
 };
 
-const cell emptyCell = cell(cellType::n, -1);
-const cell plantCell = cell(cellType::p, -1);
+const cell emptyCell = cell(cellType::n, {});
+const cell plantCell = cell(cellType::p, {});
 
 // ------- HELPER -----------
 class RandomRange {
@@ -85,9 +84,11 @@ public:
 
         int res = y(engine);
 
-        if(res == 10){
+        if(res == 10)
+        {
             return entityType::herb;
-        }else if(res == 11){
+        }else
+        {
             return entityType::carn;
         }
     }
@@ -98,6 +99,28 @@ private:
 
 int sign(int x) {
     return (x > 0) - (x < 0);
+}
+
+// Helper Structs
+pii normalizeDirection(pii dir, bool walkDiagonally = false){
+    pii res = {sign(dir.first), sign(dir.second)};
+    if(!walkDiagonally){
+        if(res.first != 0){
+            res.second = 0;
+        }
+    }
+
+    return res;}
+
+pii normalizeDirection(pii pos, pii targetPos, bool walkDiagonally = false){
+    pii res = {sign(targetPos.first - pos.first), sign(targetPos.second - pos.second)};
+    if(!walkDiagonally){
+        if(res.first != 0){
+            res.second = 0;
+        }
+    }
+
+    return res;
 }
 
 // Entity
@@ -162,7 +185,7 @@ public:
         entityCount[id->second->type].first--;
         entityCount[id->second->type].second++;
         
-        grid[id->second->pos.first][id->second->pos.second] = cell(cellType::c);
+        grid[id->second->pos.first][id->second->pos.second].ids.erase(id->second->id);
         return entities.erase(id);
     }
 

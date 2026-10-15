@@ -17,10 +17,10 @@ void print(const char* format, ...) {
     va_end(args);
 }
 
+// Space relations: returns the position of searched object
 pii findNearestPlant(const WorldState& world, pii pos) {
     queue<pii> q;
     vector<vector<bool>> visited(world.n, vector<bool>(world.m, false));
-    vector<vector<pii>> firstStep(world.n, vector<pii>(world.m));
 
     vector<pii> dirs = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
 
@@ -39,41 +39,29 @@ pii findNearestPlant(const WorldState& world, pii pos) {
 
             visited[next.first][next.second] = true;
 
-            if (cur == pos)
-                firstStep[next.first][next.second] = d;
-            else
-                firstStep[next.first][next.second] = firstStep[cur.first][cur.second];
-
-            if (world.grid[next.first][next.second].type == cellType::p)
-                return firstStep[next.first][next.second];
+            if (world.grid[next.first][next.second].type == cellType::p){
+                return next;
+            }
 
             q.push(next);
         }
     }
 
-    return {0, 0}; // no plants
+    return {-1, -1}; // no plants
 }
 
-pii findNearestHerbivore(const WorldState& world, pii pos){
+pii findNearestEntity(const WorldState& world, pii pos, entityType searchedType){
     int dist = INT_MAX;
-    pii herbPos = {-1, 1};
+    pii targetPos = {-1, -1};
 
     for(auto it = world.entities.begin(); it != world.entities.end(); ++it){
-        if(world.distance(it->second->id, pos) < dist && it->second->type == entityType::herb){
+        if(world.distance(it->second->id, pos) < dist && it->second->type == searchedType){
             dist = world.distance(it->second->id, pos);
-            herbPos = pii(it->second->pos);
+            targetPos = pii(it->second->pos);
         }
     }
 
-    pii dir = {sign(herbPos.first - pos.first), sign(herbPos.second - pos.second)};
-
-    // can walk diagonally
-    /*
-    if(dir.first != 0){
-        dir.second = 0;
-    }*/
-
-    return {pos.first + dir.first, pos.second + dir.second};
+    return targetPos;
 }
 
 // default types of entities to spawn
@@ -82,7 +70,23 @@ struct herbivoreEntity : entity {
         : entity(id, entityType::herb, pos, energy, age) {}
     
     pii decideMove(const WorldState& world) override{
-        pii dir = findNearestPlant(world, pos);
+        pii targetPos = findNearestPlant(world, pos);
+        pii targetDir = normalizeDirection(pos, targetPos, true);
+
+        pii scaryPos = findNearestEntity(world, pos, entityType::carn);
+        pii scaryDir = normalizeDirection(pos, scaryPos, true);
+
+        pii dir = {0, 0};
+
+        if(world.distance(id, scaryPos) <= 3 && world.inBounds(scaryPos)){
+            dir = {-scaryDir.first, -scaryDir.second};
+        }else if(world.inBounds(targetPos)){
+            dir = targetDir;
+        }else{
+            dir = {myRand.rand(-1, 1), myRand.rand(-1, 1)};
+        }
+
+        dir = normalizeDirection(dir, false);
 
         return {pos.first + dir.first, pos.second + dir.second};
     }
@@ -97,9 +101,14 @@ struct carnivoreEntity : entity {
         : entity(id, entityType::carn, pos, energy, age) {}
     
     pii decideMove(const WorldState& world) override{
-        pii newPos = findNearestHerbivore(world, pos);
+        pii targetPos = findNearestEntity(world, pos, entityType::herb);
+        pii dir = normalizeDirection(pos, targetPos, true);
 
-        return newPos;
+        pii tempPos = {pos.first + dir.first, pos.second + dir.second};
+        targetPos = findNearestEntity(world, tempPos, entityType::herb);
+        dir = normalizeDirection(tempPos, targetPos, true);
+
+        return {tempPos.first + dir.first, tempPos.second + dir.second};
     }
 
     unique_ptr<entity> clone() const override {
@@ -115,21 +124,24 @@ int getID(){
 
 // Transforming state to its output view
 string cellToString(const cell& cell, const WorldState& world){
-    switch(cell.type){
-        case cellType::n:
-            return "\033[90m·\033[0m ";
-            break;
 
-        case cellType::p:
-            return "\033[32m♣\033[0m ";
-            break;
+    if(cell.ids.size() == 0){
+        switch(cell.type){
+            case cellType::n:
+                return "\033[90m·\033[0m ";
+                break;
 
-        case cellType::c:
-            return "\033[35m☠\033[0m ";
-            break;
+            case cellType::p:
+                return "\033[32m♣\033[0m ";
+                break;
 
-        case cellType::e:
-            auto it = world.entities.find(cell.id);
+            case cellType::c:
+                return "\033[35m☠\033[0m ";
+                break;
+        }
+    }else{
+        if(cell.ids.size() == 1){
+            auto it = world.entities.find(*cell.ids.begin());
 
             if (it == world.entities.end())
                 return "? ";
@@ -141,7 +153,9 @@ string cellToString(const cell& cell, const WorldState& world){
                 case entityType::carn:
                     return "\033[34m♠\033[0m ";
             }
-            break;
+        }else{
+            return "\033[91m◎\033[0m ";
+        }
     }
 
     return "? ";
@@ -163,7 +177,7 @@ void newEntity(int id, pii pos, entityType type, WorldState& world){
 
 cell inputToCell(pii pos, const string& rep, WorldState& world){
     cell res;
-    res.id = -1;
+    res.ids = {};
 
     // , e}, {"♣", p}, {"♥", h}, {"♠", c}};
     if(rep == "·"){
@@ -176,10 +190,10 @@ cell inputToCell(pii pos, const string& rep, WorldState& world){
         res.type = cellType::c;
         return res;
     }else{
-        res.type = cellType::e;
-        res.id = getID();
+        res.type = cellType::n;
+        res.ids.insert(getID());
 
-        newEntity(res.id, pos, (rep == "♥") ? entityType::herb : entityType::carn, world);
+        newEntity(*res.ids.begin(), pos, (rep == "♥") ? entityType::herb : entityType::carn, world);
 
         return res;
     }
@@ -230,7 +244,7 @@ WorldState advanceTime(const WorldState& world){
 
         if(world.grid[newPos.first][newPos.second].type == cellType::p && ent->second->type == entityType::herb){
             res.entities[ent->second->id]->energy += rules.foodEnergy;
-            res.grid[newPos.first][newPos.second] = emptyCell;
+            res.grid[newPos.first][newPos.second].type = cellType::n;
         }
         
         res.entities[ent->second->id]->pos = newPos;
@@ -334,8 +348,8 @@ WorldState advanceTime(const WorldState& world){
     // update displaying grid
     for(int i = 0; i < res.n; i++){
         for(int j = 0; j < res.m; j++){
-            if(res.grid[i][j].type == cellType::e){
-                res.grid[i][j] = emptyCell;
+            if(res.grid[i][j].ids.size() >= 1){
+                res.grid[i][j].ids = {};
             }
         }
     }
@@ -344,7 +358,7 @@ WorldState advanceTime(const WorldState& world){
         pii pos = it->second->pos;
 
         if(res.inBounds(pos)){
-            res.grid[pos.first][pos.second] = cell(cellType::e, it->first);
+            res.grid[pos.first][pos.second].ids.insert(it->first);
         }
     }
 
@@ -374,7 +388,7 @@ pair<WorldState, Rules> importWorld(ifstream& file){
     file >> debug >> delay >> miraculousSpawnChance >> maxAge >> birthEnergy >> startingEnergy >> foodEnergy >> entityEnergy;
     rules.msDelay = delay;
     rules.maxAge = maxAge;
-    rules.debug = (debug == '1');
+    rules.debug = (debug == 1);
     rules.miraculousSpawnChance = miraculousSpawnChance;
     rules.birthEnergy = birthEnergy;
     rules.startingEnergy = startingEnergy;

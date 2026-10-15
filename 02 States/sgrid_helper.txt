@@ -1,0 +1,6 @@
+sizeX sizeY
+debugMode
+delayMS miraculousSpawnChance maxAge
+birthEnergy startingEnergy
+foodEnergy entityEnergy
+grid<X by Y>
