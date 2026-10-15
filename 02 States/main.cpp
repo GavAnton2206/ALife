@@ -68,8 +68,63 @@ pii findNearestEntity(const WorldState& world, pii pos, entityType searchedType)
 struct herbivoreEntity : entity {
     herbivoreEntity(int id, pii pos, int energy = 120, int age = 0)
         : entity(id, entityType::herb, pos, energy, age) {}
+
+    pii decideMoveProbabilistically(const WorldState& world) {
+        pii foodPos = findNearestPlant(world, pos);
+        pii predatorPos = findNearestEntity(world, pos, entityType::carn);
+
+        vector<pii> possibleMoves;
+        vector<double> weights;
+
+        for (pii dir : movementDirs) {
+            pii nextPos = {pos.first + dir.first, pos.second + dir.second};
+
+            if (!world.inBounds(nextPos))
+                continue;
+
+            double score = 1.0;
+
+            // +food
+            if (world.inBounds(foodPos)) {
+                int oldDist = world.distance(id, foodPos);
+                int newDist = world.distance(nextPos, foodPos);
+
+                if (newDist < oldDist)
+                    score *= 8.0;
+
+                if (newDist > oldDist)
+                    score *= 0.6;
+            }
+
+            // -predators
+            if (world.inBounds(predatorPos)) {
+                int oldDist = world.distance(id, predatorPos);
+                int newDist = world.distance(nextPos, predatorPos);
+
+                if (oldDist <= 3) {
+                    if (newDist > oldDist)
+                        score *= 8.0;
+
+                    if (newDist < oldDist)
+                        score *= 0.2;
+                }
+            }
+
+            // satisfaction from plant :)
+            if (world.grid[nextPos.first][nextPos.second].type == cellType::p) {
+                score *= 5.0;
+            }
+
+            possibleMoves.push_back(nextPos);
+            weights.push_back(score);
+        }
+
+        int chosen = myRand.weightedChoice(weights);
+
+        return possibleMoves[chosen];
+    }
     
-    pii decideMove(const WorldState& world) override{
+    pii decideMoveDeterministically(const WorldState& world){
         pii targetPos = findNearestPlant(world, pos);
         pii targetDir = normalizeDirection(pos, targetPos, true);
 
@@ -78,10 +133,13 @@ struct herbivoreEntity : entity {
 
         pii dir = {0, 0};
 
+        // run from predator
         if(world.distance(id, scaryPos) <= 3 && world.inBounds(scaryPos)){
             dir = {-scaryDir.first, -scaryDir.second};
+        // go to food
         }else if(world.inBounds(targetPos)){
             dir = targetDir;
+        // move randomly
         }else{
             dir = {myRand.rand(-1, 1), myRand.rand(-1, 1)};
         }
@@ -89,6 +147,10 @@ struct herbivoreEntity : entity {
         dir = normalizeDirection(dir, false);
 
         return {pos.first + dir.first, pos.second + dir.second};
+    }
+
+    pii decideMove(const WorldState& world) override{
+        return decideMoveProbabilistically(world);
     }
 
     unique_ptr<entity> clone() const override {
@@ -99,8 +161,48 @@ struct herbivoreEntity : entity {
 struct carnivoreEntity : entity {
     carnivoreEntity(int id, pii pos, int energy = 20, int age = 0)
         : entity(id, entityType::carn, pos, energy, age) {}
+
+    pii decideMoveProbabilistically(const WorldState& world) {
+        pii preyPos = findNearestEntity(world, pos, entityType::herb);
+
+        vector<pii> possibleMoves;
+        vector<double> weights;
+
+        for (pii dir : movementDirs) {
+            pii nextPos = {pos.first + dir.first, pos.second + dir.second};
+
+            if (!world.inBounds(nextPos))
+                continue;
+
+            double score = 1.0;
+
+            if (world.inBounds(preyPos)) {
+                int oldDist = world.distance(pos, preyPos);
+                int newDist = world.distance(nextPos, preyPos);
+
+                // go to prey
+                if (newDist < oldDist)
+                    score *= 10.0;
+
+                // run from prey :/
+                if (newDist > oldDist)
+                    score *= 0.8;
+
+                // satisfaction eating prey :)
+                if (nextPos == preyPos)
+                    score *= 10.0;
+            }
+
+            possibleMoves.push_back(nextPos);
+            weights.push_back(score);
+        }
+
+        int chosen = myRand.weightedChoice(weights);
+
+        return possibleMoves[chosen];
+    }
     
-    pii decideMove(const WorldState& world) override{
+    pii decideMoveDeterministically(const WorldState& world) {
         pii targetPos = findNearestEntity(world, pos, entityType::herb);
         pii dir = normalizeDirection(pos, targetPos, true);
 
@@ -109,6 +211,10 @@ struct carnivoreEntity : entity {
         dir = normalizeDirection(tempPos, targetPos, true);
 
         return {tempPos.first + dir.first, tempPos.second + dir.second};
+    }
+
+    pii decideMove(const WorldState& world) override {
+        return decideMoveProbabilistically(world);
     }
 
     unique_ptr<entity> clone() const override {

@@ -61,6 +61,12 @@ struct Rules{
 const cell emptyCell = cell(cellType::n, {});
 const cell plantCell = cell(cellType::p, {});
 
+const vector<pii> movementDirs = {
+    {-1, -1}, {-1, 0}, {-1, 1},
+    { 0, -1}, { 0, 0}, { 0, 1},
+    { 1, -1}, { 1, 0}, { 1, 1}
+};
+
 // ------- HELPER -----------
 class RandomRange {
 public:
@@ -91,6 +97,12 @@ public:
         {
             return entityType::carn;
         }
+    }
+
+    int weightedChoice(const vector<double>& weights) {
+        std::discrete_distribution<int> dist(weights.begin(), weights.end());
+
+        return dist(engine);
     }
 
 private:
@@ -186,6 +198,10 @@ public:
         entityCount[id->second->type].second++;
         
         grid[id->second->pos.first][id->second->pos.second].ids.erase(id->second->id);
+        if(grid[id->second->pos.first][id->second->pos.second].type == cellType::n){
+            grid[id->second->pos.first][id->second->pos.second].type = cellType::c;
+        }
+
         return entities.erase(id);
     }
 
@@ -200,6 +216,10 @@ public:
 
     // ---------- HELPER FuNCTIONS -------------
     // Check if a given cell is within bounds
+    int distance(pii pos1, pii pos2) const{
+        return abs(pos1.first - pos2.first) + abs(pos1.second - pos2.second);
+    }
+
     int distance(int ent1, pii pos) const{
         return abs(entities.at(ent1)->pos.first - pos.first) + abs(entities.at(ent1)->pos.second - pos.second);
     }
