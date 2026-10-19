@@ -10,6 +10,7 @@
 #include <random>
 #include <cstdio>
 #include <cstdarg>
+#include <utility>
 
 struct cell;
 struct entity;

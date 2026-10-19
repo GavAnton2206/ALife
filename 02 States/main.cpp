@@ -478,7 +478,7 @@ pair<WorldState, Rules> importWorld(ifstream& file){
     
     if (!file) {
         std::cerr << "Could not open file\n";
-        return {move(res), rules};
+        return {std::move(res), rules};
     }
 
     int n, m;
@@ -523,8 +523,8 @@ int main(){
 
     ifstream file("sgrid.txt");
     pair<WorldState, Rules> res = importWorld(file);
-    worldState = move(res.first);
-    rules = move(res.second);
+    worldState = std::move(res.first);
+    rules = std::move(res.second);
     print(worldState);
     
     while(true){
@@ -534,8 +534,8 @@ int main(){
         worldState = advanceTime(worldState);
         print(worldState);
         cout << '\n';
-        printf("Herbivores -> \n\tAlive: %i\tDead: %i\n", worldState.entityCount[entityType::herb].first, worldState.entityCount[entityType::herb].second);
-        printf("Carnivores -> \n\tAlive: %i\tDead: %i\n", worldState.entityCount[entityType::carn].first, worldState.entityCount[entityType::carn].second);
+        printf("Herbivores -> \n\tAlive: %lli\tDead: %lli\n", worldState.entityCount[entityType::herb].first, worldState.entityCount[entityType::herb].second);
+        printf("Carnivores -> \n\tAlive: %lli\tDead: %lli\n", worldState.entityCount[entityType::carn].first, worldState.entityCount[entityType::carn].second);
         if(worldState.entities.size() >= 1){
             printf("Gen: %d\n", time);
         }else{
