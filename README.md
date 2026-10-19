@@ -11,6 +11,6 @@ An ongoing collection of C++ experiments exploring artificial life, simulations,
 
 ## Preview
 
-![Simulation preview](preview/demo.gif)
+![Simulation preview](00 Preview/02States.gif)
 
 *Work in progress*
