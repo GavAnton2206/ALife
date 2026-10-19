@@ -10,7 +10,16 @@ An ongoing collection of C++ experiments exploring artificial life, simulations,
   - Implemented a multi-state cellular automaton with state transitions driven by neighboring cells, generating dynamic patterns over time.
 
 ## Preview
+- **01 - Conway's Game of Life:** Cellular automata and emergent patterns.
+<p align="center">
+  <img src="00 Preview/01CGoL-1.gif" width="36%">
+  <img src="00 Preview/01CGoL-2.gif" width="36%">
+</p>
 
-![Simulation preview](<00 Preview/02States.gif>)
+- **02 - States:** Experiments with state-based simulations.
+
+<p align="center">
+  <img src="00 Preview/02States.gif" width="75%">
+</p>
 
 *Work in progress*
