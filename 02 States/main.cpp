@@ -18,7 +18,7 @@ void print(const char* format, ...) {
 }
 
 // Space relations: returns the position of searched object
-pii findNearestPlant(const WorldState& world, pii pos) {
+pii findNearestCell(const WorldState& world, pii pos, vector<cellType> searchedTypes) {
     queue<pii> q;
     vector<vector<bool>> visited(world.n, vector<bool>(world.m, false));
 
@@ -39,7 +39,7 @@ pii findNearestPlant(const WorldState& world, pii pos) {
 
             visited[next.first][next.second] = true;
 
-            if (world.grid[next.first][next.second].type == cellType::p){
+            if (find(searchedTypes.begin(), searchedTypes.end(), world.grid[next.first][next.second].type) != searchedTypes.end()){
                 return next;
             }
 
@@ -50,12 +50,12 @@ pii findNearestPlant(const WorldState& world, pii pos) {
     return {-1, -1}; // no plants
 }
 
-pii findNearestEntity(const WorldState& world, pii pos, entityType searchedType){
+pii findNearestEntity(const WorldState& world, pii pos, vector<entityType> searchedTypes){
     int dist = INT_MAX;
     pii targetPos = {-1, -1};
 
     for(auto it = world.entities.begin(); it != world.entities.end(); ++it){
-        if(world.distance(it->second->id, pos) < dist && it->second->type == searchedType){
+        if(find(searchedTypes.begin(), searchedTypes.end(), world.distance(it->second->id, pos) < dist && it->second->type) != searchedTypes.end()){
             dist = world.distance(it->second->id, pos);
             targetPos = pii(it->second->pos);
         }
@@ -70,8 +70,8 @@ struct herbivoreEntity : entity {
         : entity(id, entityType::herb, pos, energy, age) {}
 
     pii decideMoveProbabilistically(const WorldState& world) {
-        pii foodPos = findNearestPlant(world, pos);
-        pii predatorPos = findNearestEntity(world, pos, entityType::carn);
+        pii foodPos = findNearestCell(world, pos, {cellType::p});
+        pii predatorPos = findNearestEntity(world, pos, {entityType::carn});
 
         vector<pii> possibleMoves;
         vector<double> weights;
@@ -125,10 +125,10 @@ struct herbivoreEntity : entity {
     }
     
     pii decideMoveDeterministically(const WorldState& world){
-        pii targetPos = findNearestPlant(world, pos);
+        pii targetPos = findNearestCell(world, pos, {cellType::p});
         pii targetDir = normalizeDirection(pos, targetPos, true);
 
-        pii scaryPos = findNearestEntity(world, pos, entityType::carn);
+        pii scaryPos = findNearestEntity(world, pos, {entityType::carn});
         pii scaryDir = normalizeDirection(pos, scaryPos, true);
 
         pii dir = {0, 0};
@@ -163,7 +163,7 @@ struct carnivoreEntity : entity {
         : entity(id, entityType::carn, pos, energy, age) {}
 
     pii decideMoveProbabilistically(const WorldState& world) {
-        pii preyPos = findNearestEntity(world, pos, entityType::herb);
+        pii preyPos = findNearestEntity(world, pos, {entityType::herb});
 
         vector<pii> possibleMoves;
         vector<double> weights;
@@ -203,11 +203,11 @@ struct carnivoreEntity : entity {
     }
     
     pii decideMoveDeterministically(const WorldState& world) {
-        pii targetPos = findNearestEntity(world, pos, entityType::herb);
+        pii targetPos = findNearestEntity(world, pos, {entityType::herb});
         pii dir = normalizeDirection(pos, targetPos, true);
 
         pii tempPos = {pos.first + dir.first, pos.second + dir.second};
-        targetPos = findNearestEntity(world, tempPos, entityType::herb);
+        targetPos = findNearestEntity(world, tempPos, {entityType::herb});
         dir = normalizeDirection(tempPos, targetPos, true);
 
         return {tempPos.first + dir.first, tempPos.second + dir.second};
