@@ -25,6 +25,13 @@ using ll = long long;
 class WorldState;
 
 int availableID = 0;
+const int SAFE_ENERGY = 30;
+
+// counter for entityID
+int getID(){
+    availableID++;
+    return availableID;
+}
 
 // Type that defines type of cell
 enum cellType {
@@ -44,6 +51,23 @@ struct cell {
     set<int> ids; // id's of entities that are in that cell
 
     cell(cellType type_=n, set<int> id_ = {}) : type(type_), ids(id_) {}
+};
+
+struct herbivoreBehaviour {
+    double touchPlant = 5.0;
+
+    double followFood = 8.0;
+    double escapeFood = 0.6;
+
+    double followPredator = 0.2;
+    double escapePredator = 8.0;
+};
+
+struct carnivoreBehaviour {
+    double touchPrey = 10.0;
+
+    double followPrey = 10.0;
+    double escapePrey = 0.8;
 };
 
 struct Rules{
@@ -74,8 +98,13 @@ public:
     RandomRange() : engine(random_device{}()) {}
 
     // Generates a random integer in [a, b]
-    int rand(int a, int b) {
+    int randInt(int a, int b) {
         std::uniform_int_distribution<int> dist(a, b);
+        return dist(engine);
+    }
+
+    double randDouble(double a, double b) {
+        std::uniform_real_distribution<double> dist(a, b);
         return dist(engine);
     }
 
@@ -114,6 +143,12 @@ int sign(int x) {
     return (x > 0) - (x < 0);
 }
 
+// 0.0 to 0.5 depending on age
+double ageDistortion(double age, RandomRange& myRand, Rules& rules){
+    double ageDistortion = 0.5*(age/(float)rules.maxAge)*myRand.randDouble(0.0, 1.0);
+    return ageDistortion;
+};
+
 // Helper Structs
 pii normalizeDirection(pii dir, bool walkDiagonally = false){
     pii res = {sign(dir.first), sign(dir.second)};
@@ -149,6 +184,11 @@ struct entity {
     virtual pii decideMove(const WorldState& world){
         return pos;
     }
+
+    virtual void updateState(){
+        age += 1;
+        energy -= 1;
+    };
 
     entity(int id_, entityType type_, pii pos_, int energy_ = 100, int age_ = 0) : id(id_), type(type_), pos(pos_), energy(energy_), age(age_) {}
 

@@ -90,10 +90,10 @@ struct herbivoreEntity : entity {
                 int newDist = world.distance(nextPos, foodPos);
 
                 if (newDist < oldDist)
-                    score *= 8.0;
+                    score *= behaviour.followFood;
 
                 if (newDist > oldDist)
-                    score *= 0.6;
+                    score *= behaviour.escapeFood;
             }
 
             // -predators
@@ -103,16 +103,16 @@ struct herbivoreEntity : entity {
 
                 if (oldDist <= 3) {
                     if (newDist > oldDist)
-                        score *= 8.0;
+                        score *= behaviour.escapePredator;
 
                     if (newDist < oldDist)
-                        score *= 0.2;
+                        score *= behaviour.followPredator;
                 }
             }
 
             // satisfaction from plant :)
             if (world.grid[nextPos.first][nextPos.second].type == cellType::p) {
-                score *= 5.0;
+                score *= behaviour.touchPlant;
             }
 
             possibleMoves.push_back(nextPos);
@@ -141,13 +141,31 @@ struct herbivoreEntity : entity {
             dir = targetDir;
         // move randomly
         }else{
-            dir = {myRand.rand(-1, 1), myRand.rand(-1, 1)};
+            dir = {myRand.randInt(-1, 1), myRand.randInt(-1, 1)};
         }
 
         dir = normalizeDirection(dir, false);
 
         return {pos.first + dir.first, pos.second + dir.second};
     }
+
+    void updateState() override{
+        age += 1;
+        energy -= 1;
+
+        double ageDistort = ageDistortion(age, myRand, rules);
+
+        if(energy >= SAFE_ENERGY){
+            behaviour.escapeFood = 0.9*(1 + ageDistort);
+            behaviour.followFood = 1.1*(1 - ageDistort);
+            behaviour.touchPlant = 2.0*(1 - ageDistort);
+        }else{
+            behaviour.escapeFood = 0.5*(1 + ageDistort);
+            behaviour.followFood = 8.0*(1 - ageDistort);
+            behaviour.touchPlant = 10.0*(1 - ageDistort);
+        }
+         
+    };
 
     pii decideMove(const WorldState& world) override{
         return decideMoveProbabilistically(world);
@@ -156,6 +174,8 @@ struct herbivoreEntity : entity {
     unique_ptr<entity> clone() const override {
         return make_unique<herbivoreEntity>(*this);
     }
+private:
+    herbivoreBehaviour behaviour;
 };
 
 struct carnivoreEntity : entity {
@@ -182,15 +202,15 @@ struct carnivoreEntity : entity {
 
                 // go to prey
                 if (newDist < oldDist)
-                    score *= 10.0;
+                    score *= behaviour.followPrey;
 
                 // run from prey :/
                 if (newDist > oldDist)
-                    score *= 0.8;
+                    score *= behaviour.escapePrey;
 
                 // satisfaction eating prey :)
                 if (nextPos == preyPos)
-                    score *= 10.0;
+                    score *= behaviour.touchPrey;
             }
 
             possibleMoves.push_back(nextPos);
@@ -213,6 +233,24 @@ struct carnivoreEntity : entity {
         return {tempPos.first + dir.first, tempPos.second + dir.second};
     }
 
+    void updateState() override{
+        age += 1;
+        energy -= 1;
+
+        double ageDistort = ageDistortion(age, myRand, rules);
+
+        if(energy >= SAFE_ENERGY){
+            behaviour.escapePrey = 0.8*(1.0 + ageDistort);
+            behaviour.touchPrey = 3*(1.0 - ageDistort);
+            behaviour.followPrey = 2*(1.0 - ageDistort);
+        }else{
+            behaviour.escapePrey = 0.4*(1.0 + ageDistort);
+            behaviour.touchPrey = 10*(1.0 - ageDistort);
+            behaviour.followPrey = 8*(1.0 - ageDistort);
+        }
+         
+    };
+
     pii decideMove(const WorldState& world) override {
         return decideMoveProbabilistically(world);
     }
@@ -220,13 +258,9 @@ struct carnivoreEntity : entity {
     unique_ptr<entity> clone() const override {
         return make_unique<carnivoreEntity>(*this);
     }
+private:
+    carnivoreBehaviour behaviour;
 };
-
-// counter for entityID
-int getID(){
-    availableID++;
-    return availableID;
-}
 
 // Transforming state to its output view
 string cellToString(const cell& cell, const WorldState& world){
@@ -279,6 +313,8 @@ void newEntity(int id, pii pos, entityType type, WorldState& world){
             world.entityCount[entityType::carn].first++;
             break;
     }
+
+    //return (world.entities[id]); todo
 }
 
 cell inputToCell(pii pos, const string& rep, WorldState& world){
@@ -338,15 +374,14 @@ WorldState advanceTime(const WorldState& world){
 
     // move entities
     for(auto ent = world.entities.begin(); ent != world.entities.end(); ++ent){
+        ent->second->updateState();
+        
         pii oldPos = ent->second->pos;
         pii newPos = ent->second->decideMove(world);
 
         if(!world.inBounds(newPos)){
             newPos = oldPos;
         }
-
-        res.entities[ent->second->id]->age += 1;
-        res.entities[ent->second->id]->energy -= 1;
 
         if(world.grid[newPos.first][newPos.second].type == cellType::p && ent->second->type == entityType::herb){
             res.entities[ent->second->id]->energy += rules.foodEnergy;
@@ -377,7 +412,7 @@ WorldState advanceTime(const WorldState& world){
     }
 
     // miraculous birth
-    if(((float)(myRand.rand(0, 100) % 100))/100.0 >= 1 - rules.miraculousSpawnChance){
+    if(((float)(myRand.randInt(0, 100) % 100))/100.0 >= 1 - rules.miraculousSpawnChance){
         int newID = getID();
         newEntity(newID, myRand.rand_pos(world.n, world.m), myRand.rand_entity(), res);
         res.entities[newID]->age = 0;
